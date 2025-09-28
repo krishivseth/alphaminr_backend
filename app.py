@@ -1028,6 +1028,9 @@ def api_generate():
 def list_newsletters():
     """List all newsletters"""
     try:
+        # Initialize database first to ensure table exists
+        init_database()
+        
         conn = sqlite3.connect('newsletters.db')
         cursor = conn.cursor()
         
@@ -1058,6 +1061,9 @@ def list_newsletters():
 def view_newsletter(newsletter_id):
     """View a specific newsletter"""
     try:
+        # Initialize database first to ensure table exists
+        init_database()
+        
         conn = sqlite3.connect('newsletters.db')
         cursor = conn.cursor()
         
