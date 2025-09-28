@@ -38,6 +38,7 @@ class BraveSearchMCPClient:
             return self.mcp_process
         except Exception as e:
             logger.error(f"❌ Failed to start MCP server: {e}")
+            logger.info("🔄 Falling back to direct Brave Search API calls")
             return None
     
     def _send_mcp_request(self, method: str, params: Dict) -> Optional[Dict]:
@@ -72,7 +73,7 @@ class BraveSearchMCPClient:
             return None
     
     def web_search(self, query: str, count: int = 10, freshness: str = "pd") -> Dict:
-        """Perform web search using Brave Search MCP Server"""
+        """Perform web search using Brave Search MCP Server or direct API"""
         try:
             params = {
                 "name": "brave_web_search",
@@ -92,15 +93,43 @@ class BraveSearchMCPClient:
             if response and "result" in response:
                 return response["result"]
             else:
-                logger.error(f"❌ Web search failed: {response}")
-                return {"results": []}
+                logger.warning("🔄 MCP web search failed, falling back to direct API")
+                return self._direct_web_search(query, count, freshness)
                 
         except Exception as e:
             logger.error(f"❌ Web search error: {e}")
+            logger.info("🔄 Falling back to direct API")
+            return self._direct_web_search(query, count, freshness)
+    
+    def _direct_web_search(self, query: str, count: int = 10, freshness: str = "pd") -> Dict:
+        """Fallback direct Brave Search API call"""
+        try:
+            import requests
+            url = "https://api.search.brave.com/res/v1/web/search"
+            headers = {
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip",
+                "X-Subscription-Token": self.brave_api_key
+            }
+            params = {
+                "q": query,
+                "count": count,
+                "freshness": freshness,
+                "country": "US",
+                "search_lang": "en",
+                "safesearch": "moderate"
+            }
+            
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+            
+        except Exception as e:
+            logger.error(f"❌ Direct web search error: {e}")
             return {"results": []}
     
     def news_search(self, query: str, count: int = 20, freshness: str = "pd") -> Dict:
-        """Search for news using Brave Search MCP Server"""
+        """Search for news using Brave Search MCP Server or direct API"""
         try:
             params = {
                 "name": "brave_news_search",
@@ -119,11 +148,39 @@ class BraveSearchMCPClient:
             if response and "result" in response:
                 return response["result"]
             else:
-                logger.error(f"❌ News search failed: {response}")
-                return {"results": []}
+                logger.warning("🔄 MCP news search failed, falling back to direct API")
+                return self._direct_news_search(query, count, freshness)
                 
         except Exception as e:
             logger.error(f"❌ News search error: {e}")
+            logger.info("🔄 Falling back to direct API")
+            return self._direct_news_search(query, count, freshness)
+    
+    def _direct_news_search(self, query: str, count: int = 20, freshness: str = "pd") -> Dict:
+        """Fallback direct Brave Search news API call"""
+        try:
+            import requests
+            url = "https://api.search.brave.com/res/v1/news/search"
+            headers = {
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip",
+                "X-Subscription-Token": self.brave_api_key
+            }
+            params = {
+                "q": query,
+                "count": count,
+                "freshness": freshness,
+                "country": "US",
+                "search_lang": "en",
+                "safesearch": "moderate"
+            }
+            
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+            
+        except Exception as e:
+            logger.error(f"❌ Direct news search error: {e}")
             return {"results": []}
     
     def summarizer_search(self, summary_key: str) -> Dict:

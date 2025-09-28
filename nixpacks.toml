@@ -7,7 +7,7 @@ nixPkgs = ["python311", "nodejs_20"]
 [phases.install]
 cmds = [
     "pip install -r requirements.txt",
-    "npm install"
+    "npm install -g @brave/brave-search-mcp-server"
 ]
 
 [phases.build]
