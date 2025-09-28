@@ -1,0 +1,17 @@
+# Nixpacks configuration for Railway
+# This tells Railway how to build the application with both Python and Node.js
+
+[phases.setup]
+nixPkgs = ["python311", "nodejs_20"]
+
+[phases.install]
+cmds = [
+    "pip install -r requirements.txt",
+    "npm install"
+]
+
+[phases.build]
+cmds = ["echo 'Build complete'"]
+
+[start]
+cmd = "python3 app.py"

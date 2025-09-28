@@ -4,7 +4,7 @@
   "description": "Alphaminr Newsletter Generator Backend with MCP Integration",
   "main": "app.py",
   "scripts": {
-    "start": "python app.py",
+    "start": "python3 app.py",
     "install-mcp": "npm install -g @brave/brave-search-mcp-server"
   },
   "dependencies": {

@@ -5,7 +5,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "python app.py"
+startCommand = "python3 app.py"
 
 # Railway will auto-detect Python and install dependencies
 # Node.js will be installed via package.json
