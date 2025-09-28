@@ -2,10 +2,10 @@
 # This file tells Railway how to deploy the application
 
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE"
 
 [deploy]
 startCommand = "python3 app.py"
 
-# Railway will auto-detect Python and install dependencies
-# Node.js will be installed via package.json
+# Railway will use the Dockerfile for building
+# Both Python and Node.js will be properly set up
