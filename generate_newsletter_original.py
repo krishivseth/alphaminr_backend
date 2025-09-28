@@ -1,0 +1,725 @@
+#!/usr/bin/env python3
+"""
+Alphaminr Newsletter Generator - Simplified Version
+Focuses on analyzing major news headlines and government policies to identify affected publicly traded companies.
+"""
+import os
+import sys
+import re
+import sqlite3
+import uuid
+import requests
+from dotenv import load_dotenv
+from datetime import datetime, timedelta
+import anthropic
+import time
+
+# Load environment variables
+load_dotenv()
+
+# --- API Keys and Clients ---
+BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# Check for API keys and exit if not available
+if not BRAVE_SEARCH_API_KEY:
+    print("❌ ERROR: BRAVE_SEARCH_API_KEY is required in your .env file. Exiting.")
+    sys.exit(1)
+if not ANTHROPIC_API_KEY:
+    print("❌ ERROR: ANTHROPIC_API_KEY is required in your .env file. Exiting.")
+    sys.exit(1)
+
+# Initialize Anthropic client
+client = None
+try:
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    print("✅ Anthropic client initialized")
+except Exception as e:
+    print(f"❌ ERROR: Failed to initialize Anthropic client: {e}. Exiting.")
+    sys.exit(1)
+
+# Web search tool configuration
+WEB_SEARCH_TOOL = {
+    "type": "web_search_20250305",
+    "name": "web_search",
+    "max_uses": 15,  # Allow up to 15 searches per request
+    "allowed_domains": [
+        "yahoo.com", "finance.yahoo.com", "investing.com", "cnbc.com",
+        "cnn.com", "tradingview.com", "bloomberg.com", "techcrunch.com"
+    ]
+}
+
+# --- HTML Template ---
+INJECTED_STYLE = """
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.5;
+            color: #444;
+            background-color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+        }
+        h1 {
+            font-size: 2.2em;
+            text-align: center;
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        h2 {
+            font-size: 1.4em;
+            margin-top: 35px;
+            color: #34495e;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+        }
+        h3 {
+            font-size: 1.2em;
+            margin-top: 30px;
+            color: #7f8c8d;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .market-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            background-color: #f8f9fa;
+        }
+        .market-table td {
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            text-align: center;
+            width: 33.33%;
+            vertical-align: middle;
+        }
+        .market-label {
+            font-size: 0.85em;
+            font-weight: bold;
+            color: #6c757d;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .market-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #2c3e50;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .market-change {
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .change-positive {
+            color: #27ae60;
+        }
+        .change-negative {
+            color: #e74c3c;
+        }
+        .story {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .story:last-of-type {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        p {
+            margin: 0 0 15px 0;
+            color: #444;
+            font-size: 1em;
+            line-height: 1.6;
+        }
+        em {
+            color: #7f8c8d;
+        }
+        strong {
+            color: #2c3e50;
+        }
+        u {
+            text-decoration: underline;
+            text-decoration-color: #3498db;
+        }
+        .disclaimer {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            margin-top: 30px;
+            border-top: 1px solid #ecf0f1;
+            padding-top: 20px;
+        }
+        .trivia-container {
+            background-color: #f8f9fa;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .trivia-question {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        .trivia-options {
+            margin: 15px 0;
+        }
+        .trivia-option {
+            display: block;
+            background-color: #ffffff;
+            border: 1px solid #bdc3c7;
+            padding: 10px 15px;
+            margin: 8px 0;
+            border-radius: 5px;
+            color: #2c3e50;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .trivia-answer {
+            font-size: 0.9em;
+            color: #7f8c8d;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ecf0f1;
+        }
+        .trivia-correct {
+            color: #27ae60;
+            font-weight: bold;
+        }
+"""
+
+HTML_TEMPLATE = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alphaminr</title>
+    <style>
+        {INJECTED_STYLE}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Alphaminr</h1>
+        <p style="text-align: center; font-size: 0.9em; color: #6c757d; margin-bottom: 20px;">Digging Deeper Than the Headlines.</p>
+        
+        <div style="text-align: right; font-size: 0.8em; color: #6c757d; margin-bottom: 20px;">{{DATE}}</div>
+        
+        {{INTRO_PARAGRAPH}}
+
+        <h2>Market Snapshot</h2>
+        <table class="market-table">
+            {{MARKET_GRID}}
+        </table>
+
+        <h2>Policy Impact Analysis</h2>
+        {{CORE_STORIES}}
+        
+        <h3 style="font-size: 1.2em; margin-top: 35px; margin-bottom: 20px; color: #495057; font-weight: 600;">On the Horizon: Regulatory Risks & Opportunities</h3>
+        {{HORIZON_SCAN_STORIES}}
+        
+        <h2>The Brain Teaser</h2>
+        <div class="trivia-container">
+            {{TRIVIA_SECTION}}
+        </div>
+
+        <h2>Disclaimer</h2>
+        <p class="disclaimer">The content provided in this newsletter, "Alphaminr," is for informational and educational purposes only. It is not, and should not be construed as, financial, investment, legal, or tax advice. The information contained herein is based on sources believed to be reliable, but its accuracy and completeness cannot be guaranteed. Alphaminr, its authors, and its affiliates are not registered investment advisors and do not provide personalized investment advice. All investment strategies and investments involve risk of loss. Past performance is not indicative of future results. You should not act or refrain from acting on the basis of any content included in this newsletter without seeking financial or other professional advice. Any stock tickers or companies mentioned are for illustrative purposes only and do not constitute a recommendation to buy, sell, or hold any security. You are solely responsible for your own investment decisions.</p>
+    </div>
+</body>
+</html>
+"""
+
+# --- Simplified Content Prompt ---
+CONTENT_PROMPT = """You are Alphaminr, a sharp, insightful, and slightly irreverent financial newsletter. You have access to real-time web search to gather the latest market data and news.
+
+CRITICAL INSTRUCTION: You MUST use web search to find TODAY'S major news headlines and government policy announcements. Do NOT rely on your training data for current events. Search for news from the last 24-48 hours only.
+
+TONE: Sharp, insightful, and slightly irreverent. You are a clever hedge fund analyst who sees through the noise. Use wit, metaphors, and a conversational style. Start with hooks, not summaries.
+
+SPECIFICITY IS KEY: Avoid vague generalizations at all costs. Use specific proper nouns:
+- Companies: NVIDIA, not 'chip makers'
+- Products: H100 GPU, not 'new technology'  
+- People: Jerome Powell, not 'the central bank'
+- Data: $100 billion buildout, not 'significant investment'
+- Dates: July 8, 2025, not 'last few months'
+
+WEB SEARCH INSTRUCTIONS:
+- ALWAYS use web search to get TODAY'S major news headlines and government policy announcements
+- Search for news from the last 24-48 hours ONLY - avoid any news older than 48 hours
+- Focus on: Major policy announcements, regulatory changes, geopolitical developments, economic data releases, central bank statements
+- Search for current market data (S&P 500, NASDAQ, Bitcoin, etc.) if not provided in the data
+- Always cite your sources when using web search results
+- CRITICAL: If you cannot find current news (last 24-48 hours), explicitly state this and do not use old information
+
+Today's date: {DATE}
+
+--- PROVIDED DATA ---
+{PROVIDED_DATA}
+--- END PROVIDED DATA ---
+
+Generate the newsletter content in this EXACT format:
+
+INTRO_PARAGRAPH:
+[IMPORTANT: Use web search to find TODAY'S major news headlines and government policies. Write exactly 3 engaging paragraphs here. Start with a contrarian question or bold observation about TODAY'S major developments. Connect the dots between:
+1. A major government policy announcement or regulatory change from TODAY or YESTERDAY
+2. A significant geopolitical development or international trade policy from TODAY or YESTERDAY  
+3. A key economic data release or central bank statement from TODAY or YESTERDAY
+Each paragraph should be 4-6 sentences. Make it engaging, insightful, and set the tone for the entire newsletter.
+CRITICAL: If you cannot find current news (last 24-48 hours), explicitly state this and do not use old information.]
+
+MARKET_GRID:
+S&P 500|[value]|[+/-X.XX%]
+NASDAQ 100|[value]|[+/-X.XX%]
+Bitcoin (BTC)|[value]|[+/-X.XX%]
+Crude Oil (WTI)|[value]|[+/-X.XX%]
+Gold|[value]|[+/-X.XX%]
+US 10-Yr Treasury|[value]|[+/-X.XX%]
+Ethereum (ETH)|[value]|[+/-X.XX%]
+VIX|[value]|[+/-X.XX%]
+Dow Jones|[value]|[+/-X.XX%]
+
+CORE_STORIES:
+[IMPORTANT: Use web search to find TODAY'S major news headlines and government policies. Generate exactly 4 core stories based on news from TODAY or YESTERDAY (last 24-48 hours). Each story should:
+- Start with a sharp summary of TODAY'S major headline or policy announcement (the hook)
+- Identify 3-5 publicly traded companies that could be significantly affected by this development
+- Explain HOW each company might be affected (positive or negative impact on revenue, costs, regulations, etc.)
+- Be one flowing paragraph without any colons, subheadings, or formal structure
+- Include company tickers as <u>**<u>Company Name (TICKER)</u>**</u> for each mentioned company
+- Be hyper-specific with proper nouns, dates, and data points
+- Focus on both obvious winners/losers and non-obvious secondary effects
+- CRITICAL: If you cannot find current news (last 24-48 hours), explicitly state this and do not use old information]
+
+HORIZON_SCAN_STORIES:
+[Generate exactly 3 forward-looking analysis stories. Each story should:
+- Identify a specific publicly-traded U.S. company that could be affected by upcoming policy changes or regulatory developments
+- Present a non-obvious vulnerability or opportunity that the market might be missing
+- Build a logical step-by-step scenario for how this policy/regulatory change would manifest
+- Connect the impact directly to fundamentals (revenue, margins, competitive moat, regulatory compliance costs)
+- Be one flowing paragraph without any colons, subheadings, or formal structure
+- Include company ticker as <u>**<u>Company Name (TICKER)</u>**</u> exactly once]
+
+GAME_CHOICE:
+[Choose ONE: Market Cap Showdown, Revenue Race, Workforce Warriors, Corporate Timeline, Dividend Derby, P/E Ratio Challenge]
+
+CRITICAL RULES:
+- The intro must be 3 substantive paragraphs connecting major policy/headline themes
+- Each story must be a single flowing narrative - NO colons, NO subheadings
+- Company tickers appear as <u>**<u>Company Name (TICKER)</u>**</u> for each mentioned company
+- Be specific with proper nouns, avoid generalizations
+- Maintain sharp, insightful, slightly irreverent tone throughout
+- Focus on POLICY IMPACT and REGULATORY CHANGES as the primary drivers of company analysis
+- Identify both direct and indirect effects of major headlines on publicly traded companies"""
+
+# --- Simplified Data Fetching Functions ---
+
+# Import the MCP client
+from brave_mcp_client import brave_search_market_data, brave_search_news, brave_search_trends
+
+def fetch_market_data():
+    """Fetch basic market data using Brave Search"""
+    print("🌐 Fetching market data using Brave Search...")
+    data = {}
+    
+    # Search for major indices
+    indices_query = "S&P 500 NASDAQ Dow Jones current price today"
+    indices_data = brave_search_market_data(indices_query)
+    
+    # Search for commodities and crypto
+    commodities_query = "gold oil Bitcoin Ethereum VIX treasury yield current price today"
+    commodities_data = brave_search_market_data(commodities_query)
+    
+    # Parse results and extract market data
+    # This is a simplified approach - in practice, you'd want more sophisticated parsing
+    all_results = []
+    if indices_data.get("results"):
+        all_results.extend(indices_data["results"])
+    if commodities_data.get("results"):
+        all_results.extend(commodities_data["results"])
+    
+    # Extract market data from search results
+    for result in all_results:
+        title = result.get("title", "").lower()
+        description = result.get("description", "").lower()
+        text = f"{title} {description}"
+        
+        # Look for S&P 500
+        if "s&p 500" in text or "spx" in text:
+            if "S&P 500" not in data:
+                # Extract price and change from text (simplified)
+                data['S&P 500'] = "N/A"
+                data['S&P 500_change'] = "N/A"
+        
+        # Look for NASDAQ
+        if "nasdaq" in text and "100" in text:
+            if "NASDAQ 100" not in data:
+                data['NASDAQ 100'] = "N/A"
+                data['NASDAQ 100_change'] = "N/A"
+        
+        # Look for Dow Jones
+        if "dow jones" in text or "dow" in text:
+            if "Dow Jones" not in data:
+                data['Dow Jones'] = "N/A"
+                data['Dow Jones_change'] = "N/A"
+        
+        # Look for Bitcoin
+        if "bitcoin" in text or "btc" in text:
+            if "Bitcoin (BTC)" not in data:
+                data['Bitcoin (BTC)'] = "N/A"
+                data['Bitcoin (BTC)_change'] = "N/A"
+        
+        # Look for Ethereum
+        if "ethereum" in text or "eth" in text:
+            if "Ethereum (ETH)" not in data:
+                data['Ethereum (ETH)'] = "N/A"
+                data['Ethereum (ETH)_change'] = "N/A"
+        
+        # Look for Gold
+        if "gold" in text:
+            if "Gold" not in data:
+                data['Gold'] = "N/A"
+                data['Gold_change'] = "N/A"
+        
+        # Look for Oil
+        if "oil" in text or "crude" in text or "wti" in text:
+            if "Crude Oil (WTI)" not in data:
+                data['Crude Oil (WTI)'] = "N/A"
+                data['Crude Oil (WTI)_change'] = "N/A"
+        
+        # Look for VIX
+        if "vix" in text or "volatility" in text:
+            if "VIX" not in data:
+                data['VIX'] = "N/A"
+                data['VIX_change'] = "N/A"
+        
+        # Look for Treasury
+        if "treasury" in text or "10-year" in text or "bond" in text:
+            if "US 10-Yr Treasury" not in data:
+                data['US 10-Yr Treasury'] = "N/A"
+                data['US 10-Yr Treasury_change'] = "N/A"
+    
+    # Fill missing data with N/A
+    required_markets = [
+        'S&P 500', 'NASDAQ 100', 'Dow Jones', 'Bitcoin (BTC)',
+        'Crude Oil (WTI)', 'Gold', 'US 10-Yr Treasury', 'Ethereum (ETH)', 'VIX'
+    ]
+    
+    for market in required_markets:
+        if market not in data:
+            data[market] = "N/A"
+            data[f"{market}_change"] = "N/A"
+        else:
+            print(f"✅ {market}: {data[market]} ({data[f'{market}_change']})")
+    
+    return data
+
+def generate_newsletter_content():
+    """Generate newsletter content using Claude with web search"""
+    today_date = datetime.now().strftime("%B %d, %Y")
+    
+    # Fetch market data
+    market_data = fetch_market_data()
+    
+    # Build provided data string
+    provided_data = "Real-time Market Data:\n"
+    market_order = [
+        'S&P 500', 'NASDAQ 100', 'Bitcoin (BTC)', 'Crude Oil (WTI)', 
+        'Gold', 'US 10-Yr Treasury', 'Ethereum (ETH)', 'VIX', 'Dow Jones'
+    ]
+    
+    for market in market_order:
+        value = market_data.get(market, "N/A")
+        change = market_data.get(f"{market}_change", "N/A")
+        provided_data += f"{market}|{value}|{change}\n"
+    
+    provided_data += "\nCRITICAL: TODAY'S MAJOR NEWS HEADLINES AND GOVERNMENT POLICIES REQUIRED\n"
+    provided_data += "You MUST use web search to find TODAY's major news headlines and government policy announcements from the last 24-48 hours.\n"
+    provided_data += "Focus on: Major policy announcements, regulatory changes, geopolitical developments, economic data releases, central bank statements.\n"
+    provided_data += "DO NOT use any news older than 48 hours. If you cannot find current news, explicitly state this.\n"
+    provided_data += "Market data is provided above but may show N/A values - use web search to get current market prices if needed.\n"
+    
+    print("🚀 Generating newsletter content with Claude and web search...")
+    
+    try:
+        enhanced_prompt = CONTENT_PROMPT.format(DATE=today_date, PROVIDED_DATA=provided_data)
+        enhanced_prompt += "\n\nFINAL REMINDER: You MUST use web search to find TODAY's major news headlines and government policies. Focus on identifying publicly traded companies affected by these developments."
+        
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4000,
+            tools=[WEB_SEARCH_TOOL],
+            messages=[{
+                "role": "user",
+                "content": enhanced_prompt
+            }]
+        )
+        
+        # Extract content from response
+        content = ""
+        for content_block in response.content:
+            if hasattr(content_block, 'text'):
+                content += content_block.text + "\n"
+        
+        return content
+        
+    except Exception as e:
+        print(f"❌ ERROR: Failed to generate content with Claude: {e}")
+        return None
+
+def process_story_formatting(story_content):
+    """Clean up story formatting for company tickers"""
+    # Remove existing formatting
+    story_content = story_content.replace('**', '').replace('<u>', '').replace('</u>', '')
+    
+    # Find and format company ticker patterns
+    ticker_pattern = r'([A-Z][A-Za-z0-9\s&\.\-\']+)\s*\(([A-Z]{1,5})\)'
+    
+    def replace_ticker(match):
+        company = match.group(1).strip()
+        ticker = match.group(2)
+        return f'<u><strong><u>{company} ({ticker})</u></strong></u>'
+    
+    # Replace tickers
+    formatted_content = re.sub(ticker_pattern, replace_ticker, story_content)
+    
+    return formatted_content
+
+def parse_content_to_html(content):
+    """Parse the generated content and fill the HTML template"""
+    if not content:
+        print("❌ No content to parse!")
+        return None
+    
+    sections = {
+        'DATE': datetime.now().strftime("%B %d, %Y"),
+        'INTRO_PARAGRAPH': '',
+        'MARKET_GRID': '',
+        'CORE_STORIES': '',
+        'HORIZON_SCAN_STORIES': '',
+        'TRIVIA_SECTION': ''
+    }
+    
+    current_section = None
+    lines = content.split('\n')
+    buffer = []
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # Section headers
+        if line == 'INTRO_PARAGRAPH:':
+            current_section = 'INTRO_PARAGRAPH'
+            buffer = []
+            i += 1
+            continue
+        elif line == 'MARKET_GRID:':
+            current_section = 'MARKET_GRID'
+            buffer = []
+            i += 1
+            continue
+        elif line == 'CORE_STORIES:':
+            current_section = 'CORE_STORIES'
+            buffer = []
+            i += 1
+            continue
+        elif line == 'HORIZON_SCAN_STORIES:':
+            current_section = 'HORIZON_SCAN_STORIES'
+            buffer = []
+            i += 1
+            continue
+        elif line == 'GAME_CHOICE:':
+            current_section = 'GAME_CHOICE'
+            i += 1
+            continue
+        
+        # Process content based on current section
+        if current_section == 'INTRO_PARAGRAPH':
+            if line and not line.startswith('[') and not line.startswith('MARKET_GRID:'):
+                paragraph_text = line
+                j = i + 1
+                while j < len(lines) and lines[j].strip() and not lines[j].strip().startswith('[') and not lines[j].strip().startswith('MARKET_GRID:'):
+                    paragraph_text += ' ' + lines[j].strip()
+                    j += 1
+                
+                if paragraph_text:
+                    sections['INTRO_PARAGRAPH'] += f'        <p>{paragraph_text}</p>\n'
+                i = j - 1
+        
+        elif current_section == 'MARKET_GRID':
+            if '|' in line:
+                parts = line.split('|')
+                if len(parts) >= 3:
+                    label, value, change = parts[0].strip(), parts[1].strip(), parts[2].strip()
+                    change_class = 'change-positive' if change.startswith('+') else 'change-negative' if change.startswith('-') else ''
+                    buffer.append(f'''
+            <td>
+                <span class="market-label">{label}</span>
+                <span class="market-value">{value}</span>
+                <span class="market-change {change_class}">{change}</span>
+            </td>''')
+            
+            if len(buffer) == 9:
+                table_html = '<tr>' + ''.join(buffer[:3]) + '</tr>\n            <tr>' + ''.join(buffer[3:6]) + '</tr>\n            <tr>' + ''.join(buffer[6:9]) + '</tr>'
+                sections['MARKET_GRID'] = table_html
+                buffer = []
+                current_section = None
+        
+        elif current_section in ['CORE_STORIES', 'HORIZON_SCAN_STORIES']:
+            if line and not line.startswith('['):
+                story_text = line
+                j = i + 1
+                while j < len(lines) and lines[j].strip() and not lines[j].strip().startswith('[') and not lines[j].strip() in ['HORIZON_SCAN_STORIES:', 'GAME_CHOICE:']:
+                    story_text += ' ' + lines[j].strip()
+                    j += 1
+                
+                if story_text and len(story_text) > 50:
+                    formatted_story = process_story_formatting(story_text)
+                    story_html = f'<div class="story">\n            <p>{formatted_story}</p>\n        </div>'
+                    
+                    if current_section == 'CORE_STORIES':
+                        sections['CORE_STORIES'] += '\n        ' + story_html
+                    else:
+                        sections['HORIZON_SCAN_STORIES'] += '\n        ' + story_html
+                    
+                i = j - 1
+        
+        i += 1
+    
+    # Generate simple trivia
+    sections['TRIVIA_SECTION'] = """
+        <div class="trivia-question">Which sector is most sensitive to regulatory changes?</div>
+        <div class="trivia-options">
+            <div class="trivia-option">A) Technology</div>
+            <div class="trivia-option">B) Healthcare</div>
+            <div class="trivia-option">C) Financial Services</div>
+            <div class="trivia-option">D) Energy</div>
+        </div>
+        <div class="trivia-answer">
+            <strong class="trivia-correct">Answer:</strong> C) Financial Services <br>
+            <em>Financial services companies are highly regulated and sensitive to policy changes affecting lending, trading, and compliance requirements.</em>
+        </div>
+    """
+    
+    # Fill template
+    html = HTML_TEMPLATE
+    for key, value in sections.items():
+        html = html.replace(f'{{{key}}}', value if value is not None else '')
+    
+    return html
+
+def init_database():
+    """Initialize SQLite database for storing newsletters"""
+    conn = sqlite3.connect('newsletters.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS newsletters (
+            id TEXT PRIMARY KEY,
+            created_at TIMESTAMP,
+            html_content TEXT,
+            status TEXT,
+            editor_notes TEXT,
+            sent_at TIMESTAMP
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def save_newsletter_to_db(newsletter_id, html_content):
+    """Save newsletter to database"""
+    conn = sqlite3.connect('newsletters.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO newsletters (id, created_at, html_content, status)
+        VALUES (?, ?, ?, ?)
+    ''', (newsletter_id, datetime.now(), html_content, 'draft'))
+    
+    conn.commit()
+    conn.close()
+
+def main():
+    print("📊 Alphaminr Newsletter Generator - Simplified Version")
+    print("=" * 60)
+    print("Focus: Major news headlines and government policies → Company impact analysis")
+    print("=" * 60)
+    
+    # Check for lock file
+    lock_file = 'generation.lock'
+    if os.path.exists(lock_file):
+        print("❌ ERROR: Generation already in progress (lock file exists)")
+        print("If this is an error, manually delete the 'generation.lock' file")
+        sys.exit(1)
+    
+    # Create lock file
+    try:
+        with open(lock_file, 'w') as f:
+            f.write(str(os.getpid()))
+        print(f"🔒 Lock file created (PID: {os.getpid()})")
+    except Exception as e:
+        print(f"❌ ERROR: Failed to create lock file: {e}")
+        sys.exit(1)
+    
+    try:
+        # Initialize database
+        init_database()
+        
+        # Generate content using Claude
+        print("🔍 Searching for today's major news headlines and government policies...")
+        content = generate_newsletter_content()
+        
+        if not content:
+            print("❌ Failed to generate content")
+            return
+        
+        # Parse content into HTML
+        html_output = parse_content_to_html(content)
+        
+        if not html_output:
+            print("❌ Failed to parse content into HTML")
+            return
+        
+        # Generate unique ID for this newsletter
+        newsletter_id = str(uuid.uuid4())
+        
+        # Save to database
+        save_newsletter_to_db(newsletter_id, html_output)
+        
+        # Save to file
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        filename = f"alphaminr_{date_str}.html"
+        
+        if not os.path.exists('newsletters'):
+            os.makedirs('newsletters')
+            
+        file_path = os.path.join('newsletters', filename)
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(html_output)
+        
+        print(f"✅ Newsletter generated successfully!")
+        print(f"📄 Saved to {file_path}")
+        print(f"🎯 Focus: Major news headlines → Company impact analysis")
+        
+    finally:
+        # Always remove lock file
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
+            print(f"🔓 Lock file removed")
+
+if __name__ == "__main__":
+    main()
+
