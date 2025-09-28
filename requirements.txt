@@ -8,4 +8,4 @@ python-dotenv>=1.0.0
 gunicorn>=21.2.0
 
 # Note: Node.js and npm are required for the Brave Search MCP Server
-# The MCP server will be installed via NPX during runtime
+# The MCP server will be installed via package.json during Railway build

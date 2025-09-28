@@ -1,0 +1,25 @@
+{
+  "name": "alphaminr-backend",
+  "version": "1.0.0",
+  "description": "Alphaminr Newsletter Generator Backend with MCP Integration",
+  "main": "app.py",
+  "scripts": {
+    "start": "python app.py",
+    "install-mcp": "npm install -g @brave/brave-search-mcp-server"
+  },
+  "dependencies": {
+    "@brave/brave-search-mcp-server": "latest"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "python": ">=3.11.0"
+  },
+  "keywords": [
+    "newsletter",
+    "ai",
+    "mcp",
+    "brave-search"
+  ],
+  "author": "Alphaminr",
+  "license": "MIT"
+}
