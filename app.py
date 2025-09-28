@@ -855,37 +855,97 @@ def parse_content_to_html(content):
     
     return html
 
-def init_database():
-    """Initialize SQLite database for storing newsletters"""
-    conn = sqlite3.connect('newsletters.db')
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS newsletters (
-            id TEXT PRIMARY KEY,
-            created_at TIMESTAMP,
-            html_content TEXT,
-            status TEXT,
-            editor_notes TEXT,
-            sent_at TIMESTAMP
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import os
+from urllib.parse import urlparse
+
+def get_db_connection():
+    """Get PostgreSQL database connection"""
+    try:
+        # Get DATABASE_URL from environment (Railway provides this)
+        database_url = os.environ.get('DATABASE_URL')
+        if not database_url:
+            logger.error("❌ DATABASE_URL environment variable not found")
+            return None
+        
+        # Parse the DATABASE_URL
+        parsed_url = urlparse(database_url)
+        
+        conn = psycopg2.connect(
+            host=parsed_url.hostname,
+            port=parsed_url.port,
+            database=parsed_url.path[1:],  # Remove leading slash
+            user=parsed_url.username,
+            password=parsed_url.password,
+            sslmode='require'  # Railway requires SSL
         )
-    ''')
-    
-    conn.commit()
-    conn.close()
+        return conn
+    except Exception as e:
+        logger.error(f"❌ Database connection failed: {e}")
+        return None
+
+def init_database():
+    """Initialize PostgreSQL database"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("❌ Could not connect to database")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Create newsletters table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS newsletters (
+                id VARCHAR(255) PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                html_content TEXT,
+                status VARCHAR(50) DEFAULT 'draft',
+                editor_notes TEXT,
+                sent_at TIMESTAMP
+            )
+        ''')
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        logger.info("📊 PostgreSQL database initialized successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
+        return False
 
 def save_newsletter_to_db(newsletter_id, html_content):
-    """Save newsletter to database"""
-    conn = sqlite3.connect('newsletters.db')
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        INSERT INTO newsletters (id, created_at, html_content, status)
-        VALUES (?, ?, ?, ?)
-    ''', (newsletter_id, datetime.now(), html_content, 'draft'))
-    
-    conn.commit()
-    conn.close()
+    """Save newsletter to PostgreSQL database"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            logger.error("❌ Could not connect to database")
+            return False
+        
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO newsletters (id, html_content, status)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                html_content = EXCLUDED.html_content,
+                status = EXCLUDED.status
+        ''', (newsletter_id, html_content, 'draft'))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        logger.info(f"💾 Newsletter saved to PostgreSQL: {newsletter_id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to save newsletter: {e}")
+        return False
 
 # --- Flask Routes ---
 
@@ -1028,23 +1088,32 @@ def api_generate():
 def list_newsletters():
     """List all newsletters"""
     try:
-        # Initialize database first to ensure table exists
-        init_database()
+        # Initialize database first
+        if not init_database():
+            return jsonify({"success": False, "error": "Database initialization failed"}), 500
         
-        conn = sqlite3.connect('newsletters.db')
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({"success": False, "error": "Database connection failed"}), 500
+        
         cursor = conn.cursor()
         
-        cursor.execute('SELECT id, created_at FROM newsletters ORDER BY created_at DESC')
+        cursor.execute('''
+            SELECT id, created_at 
+            FROM newsletters 
+            ORDER BY created_at DESC
+        ''')
         results = cursor.fetchall()
         
+        cursor.close()
         conn.close()
         
         newsletters = []
         for newsletter_id, created_at in results:
             newsletters.append({
                 'id': newsletter_id,
-                'created_at': created_at,
-                'display_date': created_at.split('T')[0] if 'T' in created_at else created_at
+                'created_at': created_at.isoformat() if created_at else '',
+                'display_date': created_at.strftime('%Y-%m-%d') if created_at else ''
             })
         
         return jsonify({
@@ -1061,15 +1130,24 @@ def list_newsletters():
 def view_newsletter(newsletter_id):
     """View a specific newsletter"""
     try:
-        # Initialize database first to ensure table exists
-        init_database()
+        # Initialize database first
+        if not init_database():
+            return "Database initialization failed", 500
         
-        conn = sqlite3.connect('newsletters.db')
+        conn = get_db_connection()
+        if not conn:
+            return "Database connection failed", 500
+        
         cursor = conn.cursor()
         
-        cursor.execute('SELECT html_content FROM newsletters WHERE id = ?', (newsletter_id,))
+        cursor.execute('''
+            SELECT html_content 
+            FROM newsletters 
+            WHERE id = %s
+        ''', (newsletter_id,))
         result = cursor.fetchone()
         
+        cursor.close()
         conn.close()
         
         if result:

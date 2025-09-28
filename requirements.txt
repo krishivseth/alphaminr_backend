@@ -6,6 +6,7 @@ requests>=2.31.0
 flask>=3.0.0
 python-dotenv>=1.0.0
 gunicorn>=21.2.0
+psycopg2-binary>=2.9.9
 
 # Note: Node.js and npm are required for the Brave Search MCP Server
 # The MCP server will be installed via package.json during Railway build
