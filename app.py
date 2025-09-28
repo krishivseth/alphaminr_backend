@@ -1024,6 +1024,36 @@ def api_generate():
         logger.error(f"💥 Exception during generation: {str(e)}", exc_info=True)
         return jsonify({"success": False, "error": str(e), "type": type(e).__name__}), 500
 
+@app.route('/api/newsletters', methods=['GET'])
+def list_newsletters():
+    """List all newsletters"""
+    try:
+        conn = sqlite3.connect('newsletters.db')
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT id, created_at FROM newsletters ORDER BY created_at DESC')
+        results = cursor.fetchall()
+        
+        conn.close()
+        
+        newsletters = []
+        for newsletter_id, created_at in results:
+            newsletters.append({
+                'id': newsletter_id,
+                'created_at': created_at,
+                'display_date': created_at.split('T')[0] if 'T' in created_at else created_at
+            })
+        
+        return jsonify({
+            "success": True,
+            "newsletters": newsletters,
+            "count": len(newsletters)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error listing newsletters: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/newsletter/<newsletter_id>')
 def view_newsletter(newsletter_id):
     """View a specific newsletter"""
