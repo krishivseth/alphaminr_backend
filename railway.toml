@@ -1,19 +1,11 @@
 # Railway deployment configuration
 # This file tells Railway how to deploy the application
 
-# Python version
-python-version: 3.11
+[build]
+builder = "NIXPACKS"
 
-# Node.js version (required for Brave Search MCP Server)
-node-version: 20
-
-# Build command (if needed)
-build: |
-  pip install -r requirements.txt
-  npm install -g @brave/brave-search-mcp-server
-
-# Start command
-start: python app.py
+[deploy]
+startCommand = "python app.py"
 
 # Environment variables (set these in Railway dashboard)
 # BRAVE_SEARCH_API_KEY=your_brave_api_key_here
