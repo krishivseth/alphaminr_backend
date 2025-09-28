@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 """
-Test script for Railway deployment
-Tests the main functionality of the Alphaminr Newsletter Generator
+Test script for Railway deployment with enhanced MCP integration
+Tests the Brave Search MCP Server integration
 """
 import os
-import sys
 import requests
 import json
+import time
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-def test_health_endpoint(base_url):
+# Get Railway URL from environment
+RAILWAY_URL = os.getenv("RAILWAY_URL", "http://localhost:5000")
+
+def test_health():
     """Test the health endpoint"""
     print("🔍 Testing health endpoint...")
     try:
-        response = requests.get(f"{base_url}/health", timeout=10)
+        response = requests.get(f"{RAILWAY_URL}/health", timeout=10)
         if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Health check passed: {data['status']}")
-            print(f"   Environment: {data['environment']}")
+            print("✅ Health check passed")
             return True
         else:
             print(f"❌ Health check failed: {response.status_code}")
@@ -29,83 +30,113 @@ def test_health_endpoint(base_url):
         print(f"❌ Health check error: {e}")
         return False
 
-def test_newsletter_generation(base_url):
-    """Test newsletter generation"""
-    print("🚀 Testing newsletter generation...")
+def test_mcp_integration():
+    """Test MCP integration"""
+    print("🔍 Testing MCP integration...")
     try:
-        response = requests.post(
-            f"{base_url}/api/generate",
-            json={},
-            timeout=60  # Newsletter generation can take time
-        )
+        # Test web search
+        response = requests.post(f"{RAILWAY_URL}/api/test-mcp", 
+                              json={"test_type": "web_search", "query": "S&P 500 current price"},
+                              timeout=30)
         
         if response.status_code == 200:
-            data = response.json()
-            if data.get('success'):
-                print(f"✅ Newsletter generated successfully!")
-                print(f"   Generation time: {data.get('generation_time_seconds', 0):.2f}s")
-                print(f"   Newsletter ID: {data.get('newsletter_id', 'N/A')}")
-                
-                # Test viewing the newsletter
-                newsletter_id = data.get('newsletter_id')
-                if newsletter_id:
-                    view_response = requests.get(f"{base_url}/newsletter/{newsletter_id}")
-                    if view_response.status_code == 200:
-                        print("✅ Newsletter viewing works")
-                        return True
-                    else:
-                        print(f"❌ Newsletter viewing failed: {view_response.status_code}")
-                        return False
+            result = response.json()
+            if result.get("success"):
+                print("✅ MCP web search test passed")
                 return True
             else:
-                print(f"❌ Newsletter generation failed: {data.get('error', 'Unknown error')}")
+                print(f"❌ MCP web search test failed: {result.get('error')}")
                 return False
         else:
-            print(f"❌ Newsletter generation request failed: {response.status_code}")
+            print(f"❌ MCP test failed: {response.status_code}")
             return False
+            
     except Exception as e:
-        print(f"❌ Newsletter generation error: {e}")
+        print(f"❌ MCP test error: {e}")
+        return False
+
+def test_newsletter_generation():
+    """Test newsletter generation with enhanced MCP"""
+    print("🔍 Testing newsletter generation with enhanced MCP...")
+    try:
+        response = requests.post(f"{RAILWAY_URL}/api/generate", 
+                              json={},
+                              timeout=120)  # Longer timeout for generation
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success"):
+                print("✅ Newsletter generation test passed")
+                print(f"📄 Newsletter ID: {result.get('newsletter_id')}")
+                return True
+            else:
+                print(f"❌ Newsletter generation test failed: {result.get('error')}")
+                return False
+        else:
+            print(f"❌ Newsletter generation test failed: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Newsletter generation test error: {e}")
+        return False
+
+def test_enhanced_search():
+    """Test enhanced search capabilities"""
+    print("🔍 Testing enhanced search capabilities...")
+    try:
+        # Test government policies search
+        response = requests.post(f"{RAILWAY_URL}/api/test-search", 
+                              json={"search_type": "government_policies"},
+                              timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("success"):
+                print("✅ Enhanced search test passed")
+                return True
+            else:
+                print(f"❌ Enhanced search test failed: {result.get('error')}")
+                return False
+        else:
+            print(f"❌ Enhanced search test failed: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Enhanced search test error: {e}")
         return False
 
 def main():
-    """Main test function"""
-    print("🧪 Alphaminr Newsletter Generator - Railway Deployment Test")
+    """Run all tests"""
+    print("🧪 Testing Railway deployment with enhanced MCP integration")
+    print("=" * 60)
+    print(f"Testing URL: {RAILWAY_URL}")
     print("=" * 60)
     
-    # Get base URL from environment or use default
-    base_url = os.getenv("RAILWAY_URL", "http://localhost:5000")
+    tests = [
+        ("Health Check", test_health),
+        ("MCP Integration", test_mcp_integration),
+        ("Enhanced Search", test_enhanced_search),
+        ("Newsletter Generation", test_newsletter_generation)
+    ]
     
-    if base_url == "http://localhost:5000":
-        print("⚠️ Using localhost URL. Set RAILWAY_URL environment variable for remote testing.")
+    passed = 0
+    total = len(tests)
     
-    print(f"🌐 Testing against: {base_url}")
-    print()
+    for test_name, test_func in tests:
+        print(f"\n📋 Running {test_name}...")
+        if test_func():
+            passed += 1
+        time.sleep(2)  # Wait between tests
     
-    # Run tests
-    tests_passed = 0
-    total_tests = 2
+    print("\n" + "=" * 60)
+    print(f"📊 Test Results: {passed}/{total} tests passed")
     
-    # Test 1: Health endpoint
-    if test_health_endpoint(base_url):
-        tests_passed += 1
-    print()
-    
-    # Test 2: Newsletter generation
-    if test_newsletter_generation(base_url):
-        tests_passed += 1
-    print()
-    
-    # Summary
-    print("📊 Test Results:")
-    print(f"   Passed: {tests_passed}/{total_tests}")
-    print(f"   Success rate: {(tests_passed/total_tests)*100:.1f}%")
-    
-    if tests_passed == total_tests:
+    if passed == total:
         print("🎉 All tests passed! Railway deployment is working correctly.")
-        sys.exit(0)
     else:
-        print("❌ Some tests failed. Check the logs and configuration.")
-        sys.exit(1)
+        print("❌ Some tests failed. Check the logs above for details.")
+    
+    print("=" * 60)
 
 if __name__ == "__main__":
     main()

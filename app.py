@@ -333,31 +333,194 @@ CRITICAL RULES:
 - Identify both direct and indirect effects of major headlines on publicly traded companies"""
 
 # --- MCP Client Functions ---
-from mcp_client import init_mcp_client, get_mcp_client
+from mcp_client import init_mcp_client, get_mcp_client, BraveSearchMCPClient
 
 # Initialize MCP client
 mcp_client = init_mcp_client(BRAVE_SEARCH_API_KEY)
 
 def brave_search_market_data(query):
-    """Search for market data using MCP client"""
-    client = get_mcp_client()
-    if client:
-        return client.search_market_data(query)
-    return {"results": []}
+    """Search for market data using Brave Search MCP Server"""
+    try:
+        client = get_mcp_client()
+        if not client:
+            logger.error("❌ MCP client not initialized")
+            return {"results": []}
+        
+        # Use the enhanced market data search
+        result = client.search_market_data(query)
+        
+        # Get AI summary if available
+        summary = client.get_enhanced_summary(result)
+        if summary:
+            result["ai_summary"] = summary
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Brave search market data error: {e}")
+        return {"results": []}
 
 def brave_search_news(query):
-    """Search for news using MCP client"""
-    client = get_mcp_client()
-    if client:
-        return client.news_search(query)
-    return {"results": []}
+    """Search for news using Brave Search MCP Server"""
+    try:
+        client = get_mcp_client()
+        if not client:
+            logger.error("❌ MCP client not initialized")
+            return {"results": []}
+        
+        # Use the enhanced news search
+        result = client.search_news_headlines(query)
+        
+        # Get AI summary if available
+        summary = client.get_enhanced_summary(result)
+        if summary:
+            result["ai_summary"] = summary
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Brave search news error: {e}")
+        return {"results": []}
 
 def brave_search_trends(query):
-    """Search for trending topics using MCP client"""
-    client = get_mcp_client()
-    if client:
-        return client.web_search(query)
-    return {"results": []}
+    """Search for trending topics using Brave Search MCP Server"""
+    try:
+        client = get_mcp_client()
+        if not client:
+            logger.error("❌ MCP client not initialized")
+            return {"results": []}
+        
+        # Use the enhanced web search
+        result = client.web_search(query, freshness="pd")
+        
+        # Get AI summary if available
+        summary = client.get_enhanced_summary(result)
+        if summary:
+            result["ai_summary"] = summary
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Brave search trends error: {e}")
+        return {"results": []}
+
+# --- Enhanced Search Functions ---
+
+def search_government_policies():
+    """Search for government policy announcements from past 24 hours"""
+    try:
+        client = get_mcp_client()
+        if not client:
+            logger.error("❌ MCP client not initialized")
+            return {"results": []}
+        
+        # Search for various government policy types
+        policy_queries = [
+            "government policy announcement today",
+            "regulatory changes today",
+            "federal policy update today",
+            "congressional legislation today",
+            "executive order today"
+        ]
+        
+        all_results = []
+        for query in policy_queries:
+            result = client.search_government_policies(query)
+            if result.get("results"):
+                all_results.extend(result["results"])
+        
+        return {"results": all_results}
+        
+    except Exception as e:
+        logger.error(f"❌ Government policies search error: {e}")
+        return {"results": []}
+
+def search_economic_data():
+    """Search for economic data releases from past 24 hours"""
+    try:
+        client = get_mcp_client()
+        if not client:
+            logger.error("❌ MCP client not initialized")
+            return {"results": []}
+        
+        # Search for various economic data types
+        economic_queries = [
+            "economic data release today",
+            "GDP inflation unemployment today",
+            "federal reserve economic data today",
+            "consumer price index today",
+            "employment data today"
+        ]
+        
+        all_results = []
+        for query in economic_queries:
+            result = client.search_economic_data(query)
+            if result.get("results"):
+                all_results.extend(result["results"])
+        
+        return {"results": all_results}
+        
+    except Exception as e:
+        logger.error(f"❌ Economic data search error: {e}")
+        return {"results": []}
+
+def search_central_bank_statements():
+    """Search for central bank statements from past 24 hours"""
+    try:
+        client = get_mcp_client()
+        if not client:
+            logger.error("❌ MCP client not initialized")
+            return {"results": []}
+        
+        # Search for central bank statements
+        central_bank_queries = [
+            "federal reserve statement today",
+            "central bank announcement today",
+            "fed meeting minutes today",
+            "interest rate decision today",
+            "monetary policy today"
+        ]
+        
+        all_results = []
+        for query in central_bank_queries:
+            result = client.search_central_bank_statements(query)
+            if result.get("results"):
+                all_results.extend(result["results"])
+        
+        return {"results": all_results}
+        
+    except Exception as e:
+        logger.error(f"❌ Central bank statements search error: {e}")
+        return {"results": []}
+
+def search_geopolitical_developments():
+    """Search for geopolitical developments from past 24 hours"""
+    try:
+        client = get_mcp_client()
+        if not client:
+            logger.error("❌ MCP client not initialized")
+            return {"results": []}
+        
+        # Search for geopolitical developments
+        geo_queries = [
+            "geopolitical developments today",
+            "international trade policy today",
+            "diplomatic relations today",
+            "global economic policy today",
+            "international sanctions today"
+        ]
+        
+        all_results = []
+        for query in geo_queries:
+            result = client.news_search(query, freshness="pd")
+            if result.get("results"):
+                all_results.extend(result["results"])
+        
+        return {"results": all_results}
+        
+    except Exception as e:
+        logger.error(f"❌ Geopolitical developments search error: {e}")
+        return {"results": []}
 
 # --- Simplified Data Fetching Functions ---
 
@@ -459,7 +622,7 @@ def fetch_market_data():
     return data
 
 def generate_newsletter_content():
-    """Generate newsletter content using Claude with web search"""
+    """Generate newsletter content using Claude with enhanced web search"""
     today_date = datetime.now().strftime("%B %d, %Y")
     
     # Fetch market data
@@ -477,13 +640,52 @@ def generate_newsletter_content():
         change = market_data.get(f"{market}_change", "N/A")
         provided_data += f"{market}|{value}|{change}\n"
     
+    # Enhanced search for current news and policies
+    logger.info("🔍 Searching for today's major news headlines and government policies...")
+    
+    # Search for government policies
+    policy_results = search_government_policies()
+    if policy_results.get("results"):
+        provided_data += f"\nGOVERNMENT POLICIES (Past 24 hours):\n"
+        for i, result in enumerate(policy_results["results"][:5], 1):
+            provided_data += f"{i}. {result.get('title', 'No title')}\n"
+            provided_data += f"   {result.get('description', 'No description')}\n"
+            provided_data += f"   Source: {result.get('url', 'No URL')}\n\n"
+    
+    # Search for economic data
+    economic_results = search_economic_data()
+    if economic_results.get("results"):
+        provided_data += f"\nECONOMIC DATA RELEASES (Past 24 hours):\n"
+        for i, result in enumerate(economic_results["results"][:5], 1):
+            provided_data += f"{i}. {result.get('title', 'No title')}\n"
+            provided_data += f"   {result.get('description', 'No description')}\n"
+            provided_data += f"   Source: {result.get('url', 'No URL')}\n\n"
+    
+    # Search for central bank statements
+    central_bank_results = search_central_bank_statements()
+    if central_bank_results.get("results"):
+        provided_data += f"\nCENTRAL BANK STATEMENTS (Past 24 hours):\n"
+        for i, result in enumerate(central_bank_results["results"][:5], 1):
+            provided_data += f"{i}. {result.get('title', 'No title')}\n"
+            provided_data += f"   {result.get('description', 'No description')}\n"
+            provided_data += f"   Source: {result.get('url', 'No URL')}\n\n"
+    
+    # Search for geopolitical developments
+    geo_results = search_geopolitical_developments()
+    if geo_results.get("results"):
+        provided_data += f"\nGEOPOLITICAL DEVELOPMENTS (Past 24 hours):\n"
+        for i, result in enumerate(geo_results["results"][:5], 1):
+            provided_data += f"{i}. {result.get('title', 'No title')}\n"
+            provided_data += f"   {result.get('description', 'No description')}\n"
+            provided_data += f"   Source: {result.get('url', 'No URL')}\n\n"
+    
     provided_data += "\nCRITICAL: TODAY'S MAJOR NEWS HEADLINES AND GOVERNMENT POLICIES REQUIRED\n"
     provided_data += "You MUST use web search to find TODAY's major news headlines and government policy announcements from the last 24-48 hours.\n"
     provided_data += "Focus on: Major policy announcements, regulatory changes, geopolitical developments, economic data releases, central bank statements.\n"
     provided_data += "DO NOT use any news older than 48 hours. If you cannot find current news, explicitly state this.\n"
     provided_data += "Market data is provided above but may show N/A values - use web search to get current market prices if needed.\n"
     
-    logger.info("🚀 Generating newsletter content with Claude and web search...")
+    logger.info("🚀 Generating newsletter content with Claude and enhanced web search...")
     
     try:
         enhanced_prompt = CONTENT_PROMPT.format(DATE=today_date, PROVIDED_DATA=provided_data)
@@ -854,6 +1056,66 @@ def health_check():
             "anthropic_api_key_set": bool(ANTHROPIC_API_KEY)
         }
     })
+
+@app.route('/api/test-mcp', methods=['POST'])
+def test_mcp():
+    """Test MCP integration"""
+    try:
+        data = request.get_json()
+        test_type = data.get('test_type', 'web_search')
+        query = data.get('query', 'test query')
+        
+        client = get_mcp_client()
+        if not client:
+            return jsonify({"success": False, "error": "MCP client not initialized"})
+        
+        if test_type == 'web_search':
+            result = client.web_search(query, freshness="pd")
+        elif test_type == 'news_search':
+            result = client.news_search(query, freshness="pd")
+        else:
+            return jsonify({"success": False, "error": "Invalid test type"})
+        
+        return jsonify({
+            "success": True,
+            "test_type": test_type,
+            "query": query,
+            "results_count": len(result.get("results", [])),
+            "has_ai_summary": "ai_summary" in result
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ MCP test error: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/test-search', methods=['POST'])
+def test_search():
+    """Test enhanced search capabilities"""
+    try:
+        data = request.get_json()
+        search_type = data.get('search_type', 'government_policies')
+        
+        if search_type == 'government_policies':
+            result = search_government_policies()
+        elif search_type == 'economic_data':
+            result = search_economic_data()
+        elif search_type == 'central_bank_statements':
+            result = search_central_bank_statements()
+        elif search_type == 'geopolitical_developments':
+            result = search_geopolitical_developments()
+        else:
+            return jsonify({"success": False, "error": "Invalid search type"})
+        
+        return jsonify({
+            "success": True,
+            "search_type": search_type,
+            "results_count": len(result.get("results", [])),
+            "sample_results": result.get("results", [])[:3]  # First 3 results
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Search test error: {e}")
+        return jsonify({"success": False, "error": str(e)})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

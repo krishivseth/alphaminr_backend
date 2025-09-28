@@ -4,8 +4,13 @@
 # Python version
 python-version: 3.11
 
+# Node.js version (required for Brave Search MCP Server)
+node-version: 20
+
 # Build command (if needed)
-build: pip install -r requirements.txt
+build: |
+  pip install -r requirements.txt
+  npm install -g @brave/brave-search-mcp-server
 
 # Start command
 start: python app.py

@@ -1,16 +1,17 @@
 # Alphaminr Backend - Newsletter Generation Engine
 
-The backend API for the Alphaminr Newsletter Generator. This provides AI-powered newsletter generation with policy-focused analysis and company impact identification.
+The backend API for the Alphaminr Newsletter Generator. This provides AI-powered newsletter generation with policy-focused analysis and company impact identification using the official Brave Search MCP Server.
 
 ## 🎯 Features
 
 - **Policy-Focused Analysis** - Analyzes major news headlines and government policies
 - **Company Impact Identification** - Identifies 3-5 publicly traded companies affected by each development
-- **Real-Time Web Search** - Uses Brave Search API for current news and market data
+- **Real-Time Web Search** - Uses official Brave Search MCP Server for current news and market data
 - **AI Content Generation** - Claude AI generates insightful, policy-focused content
-- **MCP Integration** - Model Context Protocol for enhanced web search
+- **Enhanced MCP Integration** - Official Brave Search MCP Server with web search, news search, and summarizer
 - **Database Storage** - SQLite database for newsletter persistence
 - **Health Monitoring** - Built-in health check endpoints
+- **Test Endpoints** - Comprehensive testing for MCP integration
 
 ## 🚀 Deployment
 
@@ -38,13 +39,19 @@ The backend API for the Alphaminr Newsletter Generator. This provides AI-powered
    pip install -r requirements.txt
    ```
 
-2. **Set Environment Variables**:
+2. **Install Node.js** (required for MCP Server):
+   ```bash
+   # Install Node.js 20+ from https://nodejs.org
+   npm install -g @brave/brave-search-mcp-server
+   ```
+
+3. **Set Environment Variables**:
    ```bash
    export BRAVE_SEARCH_API_KEY=your_brave_api_key
    export ANTHROPIC_API_KEY=your_anthropic_api_key
    ```
 
-3. **Run Locally**:
+4. **Run Locally**:
    ```bash
    python app.py
    ```
@@ -53,7 +60,7 @@ The backend API for the Alphaminr Newsletter Generator. This provides AI-powered
 
 ```
 ├── app.py                   # Main Flask application
-├── mcp_client.py            # MCP client for web search
+├── mcp_client.py            # Enhanced MCP client for Brave Search MCP Server
 ├── test_railway.py          # Test script
 ├── requirements.txt         # Dependencies
 ├── Procfile                 # Railway process configuration
@@ -63,11 +70,12 @@ The backend API for the Alphaminr Newsletter Generator. This provides AI-powered
 
 ## 🔄 How It Works
 
-1. **News Search**: Searches for today's major news headlines and government policies
-2. **Company Analysis**: Identifies publicly traded companies affected by each development
-3. **Impact Assessment**: Explains how each company might be affected (positive/negative)
-4. **Content Generation**: Claude AI creates engaging, policy-focused content
-5. **Newsletter Formatting**: Generates clean HTML newsletter with market data
+1. **Enhanced News Search**: Uses official Brave Search MCP Server to search for today's major news headlines and government policies
+2. **Policy Analysis**: Searches for government policies, economic data, central bank statements, and geopolitical developments
+3. **Company Analysis**: Identifies publicly traded companies affected by each development
+4. **Impact Assessment**: Explains how each company might be affected (positive/negative)
+5. **Content Generation**: Claude AI creates engaging, policy-focused content with AI summaries
+6. **Newsletter Formatting**: Generates clean HTML newsletter with market data
 
 ## 📊 API Endpoints
 
@@ -75,6 +83,8 @@ The backend API for the Alphaminr Newsletter Generator. This provides AI-powered
 - `POST /api/generate` - Generate a new newsletter
 - `GET /newsletter/<id>` - View a specific newsletter
 - `GET /health` - Health check endpoint
+- `POST /api/test-mcp` - Test MCP integration
+- `POST /api/test-search` - Test enhanced search capabilities
 
 ### Example Usage
 
@@ -87,8 +97,15 @@ curl -X POST https://your-app.railway.app/api/generate \
 # Health check
 curl https://your-app.railway.app/health
 
-# View newsletter
-curl https://your-app.railway.app/newsletter/your-newsletter-id
+# Test MCP integration
+curl -X POST https://your-app.railway.app/api/test-mcp \
+  -H "Content-Type: application/json" \
+  -d '{"test_type": "web_search", "query": "S&P 500 current price"}'
+
+# Test enhanced search
+curl -X POST https://your-app.railway.app/api/test-search \
+  -H "Content-Type: application/json" \
+  -d '{"search_type": "government_policies"}'
 ```
 
 ## 🧪 Testing
@@ -129,6 +146,7 @@ python test_railway.py
 - Health check endpoint: `/health`
 - Railway provides built-in monitoring
 - Application logs available in dashboard
+- Test endpoints for MCP integration verification
 
 ## 🤝 Contributing
 
