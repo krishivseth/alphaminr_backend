@@ -521,7 +521,7 @@ def generate_newsletter_content():
         
         # Call Anthropic with an overall timeout guard
         response = client.messages.create(
-            model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest"),
+            model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
             max_tokens=int(os.getenv("ANTHROPIC_MAX_TOKENS", "2200")),
             tools=[WEB_SEARCH_TOOL],
             messages=[{
