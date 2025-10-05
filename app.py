@@ -519,9 +519,10 @@ def generate_newsletter_content():
         enhanced_prompt += f"\n\nIMPORTANT: Replace {{DATE}} with '{today_date}' and {{YEAR}} with '{current_year}' in the HTML template."
         enhanced_prompt += "\n\nFINAL REMINDER: You MUST use web search to find TODAY's major news headlines and government policies. Focus on identifying publicly traded companies affected by these developments."
         
+        # Call Anthropic with an overall timeout guard
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4000,
+            model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest"),
+            max_tokens=int(os.getenv("ANTHROPIC_MAX_TOKENS", "2200")),
             tools=[WEB_SEARCH_TOOL],
             messages=[{
                 "role": "user",

@@ -5,7 +5,7 @@
 builder = "DOCKERFILE"
 
 [deploy]
-startCommand = "python3 app.py"
+startCommand = "gunicorn -w 2 -k gthread --threads 4 -t 180 app:app --bind 0.0.0.0:$PORT"
 
 # Railway will use the Dockerfile for building
 # Both Python and Node.js will be properly set up
