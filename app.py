@@ -167,7 +167,7 @@ mcp_client = init_mcp_client(BRAVE_SEARCH_API_KEY)
 def brave_search_market_data(query):
     """Search for market data using Brave Search MCP Server"""
     try:
-    client = get_mcp_client()
+        client = get_mcp_client()
         if not client:
             logger.error("❌ MCP client not initialized")
             return {"results": []}
@@ -189,7 +189,7 @@ def brave_search_market_data(query):
 def brave_search_news(query):
     """Search for news using Brave Search MCP Server"""
     try:
-    client = get_mcp_client()
+        client = get_mcp_client()
         if not client:
             logger.error("❌ MCP client not initialized")
             return {"results": []}
@@ -211,7 +211,7 @@ def brave_search_news(query):
 def brave_search_trends(query):
     """Search for trending topics using Brave Search MCP Server"""
     try:
-    client = get_mcp_client()
+        client = get_mcp_client()
         if not client:
             logger.error("❌ MCP client not initialized")
             return {"results": []}
@@ -586,23 +586,23 @@ def init_database():
             logger.error("❌ Could not connect to database")
             return False
         
-    cursor = conn.cursor()
-    
+        cursor = conn.cursor()
+        
         # Create newsletters table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS newsletters (
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS newsletters (
                 id VARCHAR(255) PRIMARY KEY,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            html_content TEXT,
+                html_content TEXT,
                 status VARCHAR(50) DEFAULT 'draft',
-            editor_notes TEXT,
-            sent_at TIMESTAMP
-        )
-    ''')
-    
-    conn.commit()
+                editor_notes TEXT,
+                sent_at TIMESTAMP
+            )
+        ''')
+        
+        conn.commit()
         cursor.close()
-    conn.close()
+        conn.close()
         
         logger.info("📊 PostgreSQL database initialized successfully")
         return True
@@ -619,19 +619,19 @@ def save_newsletter_to_db(newsletter_id, html_content):
             logger.error("❌ Could not connect to database")
             return False
         
-    cursor = conn.cursor()
-    
-    cursor.execute('''
+        cursor = conn.cursor()
+        
+        cursor.execute('''
             INSERT INTO newsletters (id, html_content, status)
             VALUES (%s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 html_content = EXCLUDED.html_content,
                 status = EXCLUDED.status
         ''', (newsletter_id, html_content, 'draft'))
-    
-    conn.commit()
+        
+        conn.commit()
         cursor.close()
-    conn.close()
+        conn.close()
         
         logger.info(f"💾 Newsletter saved to PostgreSQL: {newsletter_id}")
         return True
