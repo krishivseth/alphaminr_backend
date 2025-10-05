@@ -515,7 +515,7 @@ def generate_newsletter_content():
     logger.info("🚀 Generating newsletter content with Claude and enhanced web search...")
     
     try:
-        enhanced_prompt = CONTENT_PROMPT.format(DATE=today_date, PROVIDED_DATA=provided_data)
+        enhanced_prompt = CONTENT_PROMPT.replace('{DATE}', today_date).replace('{PROVIDED_DATA}', provided_data)
         enhanced_prompt += f"\n\nIMPORTANT: Replace {{DATE}} with '{today_date}' and {{YEAR}} with '{current_year}' in the HTML template."
         enhanced_prompt += "\n\nFINAL REMINDER: You MUST use web search to find TODAY's major news headlines and government policies. Focus on identifying publicly traded companies affected by these developments."
         
