@@ -29,4 +29,4 @@ EXPOSE 8080
 ENV PYTHONPATH=/app
 
 # Start the application with gunicorn honoring $PORT
-CMD ["sh", "-c", "gunicorn -w 2 -k gthread --threads 4 -t 180 app:app --bind 0.0.0.0:$PORT"]
+CMD ["sh", "-c", "gunicorn -w 2 -k gthread --threads 4 -t 180 app:app --bind 0.0.0.0:${PORT:-8080}"]
