@@ -5,13 +5,24 @@ The backend API for the Alphaminr Newsletter Generator. This provides AI-powered
 ## 🎯 Features
 
 - **Policy-Focused Analysis** - Analyzes major news headlines and government policies
-- **Company Impact Identification** - Identifies 3-5 publicly traded companies affected by each development
+- **Company Impact Identification** - Identifies publicly traded companies affected by each development
 - **Real-Time Web Search** - Uses official Brave Search MCP Server for current news and market data
 - **AI Content Generation** - Claude AI generates insightful, policy-focused content
 - **Enhanced MCP Integration** - Official Brave Search MCP Server with web search, news search, and summarizer
-- **Database Storage** - SQLite database for newsletter persistence
+- **Structured HTML Output** - Generates complete HTML newsletters ready for email distribution
+- **Database Storage** - PostgreSQL database for newsletter persistence
 - **Health Monitoring** - Built-in health check endpoints
 - **Test Endpoints** - Comprehensive testing for MCP integration
+
+## 📰 Newsletter Format
+
+The backend generates newsletters in a structured HTML format with:
+
+- **5 Major Headlines** - Fresh news from the last 18 hours spanning different sectors
+- **Impact Analysis** - Each headline includes 2-4 detailed impact vectors
+- **Company Identification** - Specific tickers and company names woven naturally into analysis
+- **Deep Analysis** - First, second, and third-order effects explained
+- **Professional Styling** - Clean, email-ready HTML with responsive design
 
 ## 🚀 Deployment
 
@@ -73,9 +84,9 @@ The backend API for the Alphaminr Newsletter Generator. This provides AI-powered
 1. **Enhanced News Search**: Uses official Brave Search MCP Server to search for today's major news headlines and government policies
 2. **Policy Analysis**: Searches for government policies, economic data, central bank statements, and geopolitical developments
 3. **Company Analysis**: Identifies publicly traded companies affected by each development
-4. **Impact Assessment**: Explains how each company might be affected (positive/negative)
-5. **Content Generation**: Claude AI creates engaging, policy-focused content with AI summaries
-6. **Newsletter Formatting**: Generates clean HTML newsletter with market data
+4. **Impact Assessment**: Explains how each company might be affected (positive/negative) with detailed causal chains
+5. **Content Generation**: Claude AI creates structured HTML newsletters with professional styling
+6. **Newsletter Formatting**: Generates complete HTML documents ready for email distribution
 
 ## 📊 API Endpoints
 
