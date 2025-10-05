@@ -22,12 +22,11 @@ RUN npm install -g @brave/brave-search-mcp-server
 # Copy application code
 COPY . .
 
-# Expose port
-EXPOSE 5000
+# Expose default port (Railway will inject $PORT at runtime)
+EXPOSE 8080
 
 # Set environment variables
 ENV PYTHONPATH=/app
-ENV PORT=5000
 
-# Start the application
-CMD ["python3", "app.py"]
+# Start the application with gunicorn honoring $PORT
+CMD ["sh", "-c", "gunicorn -w 2 -k gthread --threads 4 -t 180 app:app --bind 0.0.0.0:$PORT"]
