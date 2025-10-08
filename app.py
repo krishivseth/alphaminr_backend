@@ -979,7 +979,63 @@ def test_search():
         logger.error(f"❌ Search test error: {e}")
         return jsonify({"success": False, "error": str(e)})
 
+def run_cron_generation():
+    """Run newsletter generation when started by cron"""
+    logger.info("🕐 Service started by cron schedule - generating newsletter")
+    
+    try:
+        # Check environment variables
+        if not BRAVE_SEARCH_API_KEY or not ANTHROPIC_API_KEY:
+            logger.error("❌ Missing required environment variables for cron generation")
+            return False
+        
+        # Generate newsletter
+        generation_start = datetime.now()
+        logger.info(f"⚡ Starting cron newsletter generation at {generation_start}")
+        
+        html_output = generate_newsletter_content()
+        
+        if not html_output:
+            logger.error("❌ Failed to generate content")
+            return False
+        
+        # Generate unique ID for this newsletter
+        newsletter_id = str(uuid.uuid4())
+        
+        # Initialize database and save newsletter
+        init_database()
+        save_newsletter_to_db(newsletter_id, html_output)
+        
+        generation_end = datetime.now()
+        generation_duration = (generation_end - generation_start).total_seconds()
+        
+        logger.info(f"✅ Cron newsletter generated successfully in {generation_duration:.2f}s")
+        logger.info(f"📄 Newsletter ID: {newsletter_id}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Cron newsletter generation failed: {e}")
+        return False
+
 if __name__ == "__main__":
+    # Check if this is being run by Railway cron schedule
+    # Railway cron sets RAILWAY_CRON_SCHEDULE environment variable
+    if os.environ.get("RAILWAY_CRON_SCHEDULE"):
+        logger.info("🕐 Detected Railway cron schedule - running newsletter generation")
+        success = run_cron_generation()
+        if success:
+            logger.info("✅ Cron generation completed successfully")
+        else:
+            logger.error("❌ Cron generation failed")
+        # Exit after generation (cron jobs should not run web servers)
+        sys.exit(0 if success else 1)
+    
+    # Normal web server startup
+    logger.info("🌐 Starting web server (not cron)")
+    # Initialize database
+    init_database()
+    
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"🚀 Starting Alphaminr Newsletter Generator on port {port}")
     logger.info("🎯 Focus: Major news headlines → Company impact analysis")
