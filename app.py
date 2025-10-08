@@ -561,7 +561,7 @@ def get_db_connection():
         database_url = os.environ.get('DATABASE_URL')
         if not database_url:
             logger.error("❌ DATABASE_URL environment variable not found")
-        return None
+            return None
     
         # Parse the DATABASE_URL
         parsed_url = urlparse(database_url)
