@@ -728,16 +728,6 @@ def api_generate():
     start_time = datetime.now()
     logger.info(f"🚀 Starting newsletter generation request at {start_time}")
     
-    # Set a reasonable timeout for Railway (30 seconds max)
-    import signal
-    
-    def timeout_handler(signum, frame):
-        raise TimeoutError("Newsletter generation timed out")
-    
-    # Set timeout to 30 seconds
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(30)
-    
     try:
         # Check environment variables
         if not BRAVE_SEARCH_API_KEY or not ANTHROPIC_API_KEY:
@@ -768,9 +758,6 @@ def api_generate():
         
         logger.info(f"✅ Newsletter generated successfully in {generation_duration:.2f}s")
         
-        # Cancel the timeout alarm
-        signal.alarm(0)
-        
         return jsonify({
             "success": True,
             "html": html_output,
@@ -780,13 +767,7 @@ def api_generate():
             "message": "Newsletter generated successfully"
         })
         
-    except TimeoutError as e:
-        signal.alarm(0)  # Cancel the alarm
-        logger.error(f"⏰ Newsletter generation timed out: {e}")
-        return jsonify({"success": False, "error": "Newsletter generation timed out. Please try again."}), 408
-        
     except Exception as e:
-        signal.alarm(0)  # Cancel the alarm
         logger.error(f"💥 Exception during generation: {str(e)}", exc_info=True)
         return jsonify({"success": False, "error": str(e), "type": type(e).__name__}), 500
 
