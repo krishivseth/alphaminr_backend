@@ -790,7 +790,7 @@ def api_generate():
         logger.error(f"💥 Exception during generation: {str(e)}", exc_info=True)
         return jsonify({"success": False, "error": str(e), "type": type(e).__name__}), 500
 
-@app.route('/api/cron/generate', methods=['POST'])
+@app.route('/api/cron/generate', methods=['GET', 'POST'])
 def cron_generate():
     """Cron job endpoint for automated newsletter generation"""
     # Verify this is a legitimate cron request
@@ -798,7 +798,8 @@ def cron_generate():
     if not cron_secret:
         logger.warning("⚠️ CRON_SECRET not set - allowing all requests")
     else:
-        provided_secret = request.headers.get('X-Cron-Secret')
+        # Check for secret in headers (POST) or query params (GET)
+        provided_secret = request.headers.get('X-Cron-Secret') or request.args.get('secret')
         if provided_secret != cron_secret:
             logger.error("❌ Invalid cron secret")
             return jsonify({"success": False, "error": "Unauthorized"}), 401
