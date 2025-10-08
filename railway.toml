@@ -7,5 +7,10 @@ builder = "DOCKERFILE"
 [deploy]
 startCommand = "sh -c 'gunicorn -w 2 -k gthread --threads 4 -t 180 app:app --bind 0.0.0.0:${PORT:-8080}'"
 
+# Cron schedule configuration
+[cron]
+schedule = "0 */5 * * *"  # Every 5 hours
+command = "python app.py"
+
 # Railway will use the Dockerfile for building
 # Both Python and Node.js will be properly set up
