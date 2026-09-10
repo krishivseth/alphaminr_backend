@@ -1,172 +1,137 @@
-# Alphaminr Backend - Newsletter Generation Engine
+# Alphaminr Backend
 
-The backend API for the Alphaminr Newsletter Generator. This provides AI-powered newsletter generation with policy-focused analysis and company impact identification using the official Brave Search MCP Server.
+**Generate a daily markets newsletter that traces today's news to the companies it touches.**
 
-## 🎯 Features
+Alphaminr Backend is a small Flask service. On request, or on a schedule, it pulls the last day of government policy, economic data, central bank and geopolitical news through Brave Search, hands that context to Claude with web search enabled, and gets back a complete HTML newsletter. Each newsletter is stored in PostgreSQL and served by id. The editor UI that reads from this service lives in [alphaminr_frontend](https://github.com/krishivseth/alphaminr_frontend).
 
-- **Policy-Focused Analysis** - Analyzes major news headlines and government policies
-- **Company Impact Identification** - Identifies publicly traded companies affected by each development
-- **Real-Time Web Search** - Uses official Brave Search MCP Server for current news and market data
-- **AI Content Generation** - Claude AI generates insightful, policy-focused content
-- **Enhanced MCP Integration** - Official Brave Search MCP Server with web search, news search, and summarizer
-- **Structured HTML Output** - Generates complete HTML newsletters ready for email distribution
-- **Database Storage** - PostgreSQL database for newsletter persistence
-- **Health Monitoring** - Built-in health check endpoints
-- **Test Endpoints** - Comprehensive testing for MCP integration
+## What it does
 
-## 📰 Newsletter Format
+- **Collects the day's news.** Four search passes run before generation: government policies, economic data releases, central bank statements, and geopolitical developments. Each runs several queries against Brave Search restricted to the past day. A separate pass tries to pull current index, commodity and crypto prices.
+- **Writes the newsletter with Claude.** The collected results and market data are folded into a long prompt. Claude is called with the Anthropic web search tool (limited to a handful of finance and news domains) and asked to produce five headlines, each with impact analysis and the tickers of affected public companies, as a finished HTML email.
+- **Stores and serves newsletters.** Every generated newsletter gets a UUID and an upsert into a `newsletters` table. There are routes to list newsletters, fetch one as raw HTML, and check health.
+- **Runs on a schedule.** The same generation function runs from a Railway cron service, from `cron.py`, or from a secret-protected `/api/cron/generate` endpoint that an external cron can hit.
+- **Talks to Brave over MCP with a fallback.** Searches go through the official `@brave/brave-search-mcp-server` over stdio. If the server cannot be started or a call fails, the client falls back to the Brave Search REST API directly.
 
-The backend generates newsletters in a structured HTML format with:
+## How it works
 
-- **5 Major Headlines** - Fresh news from the last 18 hours spanning different sectors
-- **Impact Analysis** - Each headline includes 2-4 detailed impact vectors
-- **Company Identification** - Specific tickers and company names woven naturally into analysis
-- **Deep Analysis** - First, second, and third-order effects explained
-- **Professional Styling** - Clean, email-ready HTML with responsive design
+```mermaid
+flowchart LR
+    FE["alphaminr_frontend<br/>editor portal"]
+    CRON["Railway cron / external cron"]
+    BE["Flask app<br/>app.py"]
+    MCP["Brave Search MCP server<br/>(npx, stdio) or Brave REST API"]
+    CL["Claude<br/>with web_search tool"]
+    DB[("PostgreSQL")]
 
-## 🚀 Deployment
-
-### Deploy to Railway
-
-1. **Connect Repository**:
-   - Go to [Railway.app](https://railway.app)
-   - Sign in with GitHub
-   - Click "New Project" → "Deploy from GitHub repo"
-   - Select this repository
-
-2. **Set Environment Variables**:
-   - `BRAVE_SEARCH_API_KEY` - Your Brave Search API key
-   - `ANTHROPIC_API_KEY` - Your Anthropic API key
-
-3. **Deploy**:
-   - Railway will automatically detect the Python app
-   - It will install dependencies and start the server
-   - You'll get a URL like `https://your-app.railway.app`
-
-## 🔧 Local Development
-
-1. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Install Node.js** (required for MCP Server):
-   ```bash
-   # Install Node.js 20+ from https://nodejs.org
-   npm install -g @brave/brave-search-mcp-server
-   ```
-
-3. **Set Environment Variables**:
-   ```bash
-   export BRAVE_SEARCH_API_KEY=your_brave_api_key
-   export ANTHROPIC_API_KEY=your_anthropic_api_key
-   ```
-
-4. **Run Locally**:
-   ```bash
-   python app.py
-   ```
-
-## 📁 Project Structure
-
-```
-├── app.py                   # Main Flask application
-├── mcp_client.py            # Enhanced MCP client for Brave Search MCP Server
-├── test_railway.py          # Test script
-├── requirements.txt         # Dependencies
-├── Procfile                 # Railway process configuration
-├── railway.toml             # Railway deployment settings
-└── README.md                # This file
+    FE -- "POST /api/generate<br/>GET /api/newsletters" --> BE
+    CRON -- "cron.py or<br/>POST /api/cron/generate" --> BE
+    BE -- "policy, economic, central bank,<br/>geopolitical, market queries" --> MCP
+    BE -- "prompt + search context" --> CL
+    CL -- "HTML newsletter" --> BE
+    BE -- "upsert by UUID" --> DB
 ```
 
-## 🔄 How It Works
+Generation is synchronous. A request to `/api/generate` runs all the searches, one Claude call, and the database write before it returns, so expect it to take well over a minute. The response includes the HTML, the new newsletter id, and timings.
 
-1. **Enhanced News Search**: Uses official Brave Search MCP Server to search for today's major news headlines and government policies
-2. **Policy Analysis**: Searches for government policies, economic data, central bank statements, and geopolitical developments
-3. **Company Analysis**: Identifies publicly traded companies affected by each development
-4. **Impact Assessment**: Explains how each company might be affected (positive/negative) with detailed causal chains
-5. **Content Generation**: Claude AI creates structured HTML newsletters with professional styling
-6. **Newsletter Formatting**: Generates complete HTML documents ready for email distribution
+When the process starts, `app.py` checks for `RAILWAY_CRON_SCHEDULE`. If it is set, it generates one newsletter and exits instead of starting the web server. `railway.toml` applies the same check in its start command and otherwise launches gunicorn.
 
-## 📊 API Endpoints
+## Quick start
 
-- `GET /` - Main interface
-- `POST /api/generate` - Generate a new newsletter
-- `GET /newsletter/<id>` - View a specific newsletter
-- `GET /health` - Health check endpoint
-- `POST /api/test-mcp` - Test MCP integration
-- `POST /api/test-search` - Test enhanced search capabilities
-
-### Example Usage
+You need Python 3.11, Node 20+ (for the Brave MCP server), a PostgreSQL database, a Brave Search API key, and an Anthropic API key.
 
 ```bash
-# Generate newsletter
-curl -X POST https://your-app.railway.app/api/generate \
-  -H "Content-Type: application/json" \
-  -d '{}'
+pip install -r requirements.txt
+npm install -g @brave/brave-search-mcp-server
 
-# Health check
-curl https://your-app.railway.app/health
+export BRAVE_SEARCH_API_KEY=...
+export ANTHROPIC_API_KEY=...
+export DATABASE_URL=postgres://user:pass@host:5432/dbname
 
-# Test MCP integration
-curl -X POST https://your-app.railway.app/api/test-mcp \
-  -H "Content-Type: application/json" \
-  -d '{"test_type": "web_search", "query": "S&P 500 current price"}'
-
-# Test enhanced search
-curl -X POST https://your-app.railway.app/api/test-search \
-  -H "Content-Type: application/json" \
-  -d '{"search_type": "government_policies"}'
+python app.py            # http://localhost:5000
 ```
 
-## 🧪 Testing
+The app exits at import time if either API key is missing. `DATABASE_URL` is read lazily, so the server starts without it, but every newsletter route will fail.
 
-Run the test script to verify your deployment:
+To run it the way the Dockerfile does:
 
 ```bash
-# Set your Railway URL
-export RAILWAY_URL=https://your-app.railway.app
-
-# Run tests
-python test_railway.py
+gunicorn -w 2 -k gthread --threads 4 -t 180 app:app --bind 0.0.0.0:8080
 ```
 
-## 🔑 Environment Variables
+Generate a newsletter and view it:
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `BRAVE_SEARCH_API_KEY` | Brave Search API key | Yes |
-| `ANTHROPIC_API_KEY` | Anthropic API key | Yes |
-| `PORT` | Server port (Railway sets this) | No |
+```bash
+curl -X POST http://localhost:5000/api/generate -H "Content-Type: application/json" -d '{}'
+curl http://localhost:5000/api/newsletters
+open http://localhost:5000/newsletter/<id>
+```
 
-## 💰 Cost Considerations
+Smoke-test a deployment:
 
-- **Railway**: Free tier includes 500 hours/month
-- **Brave Search**: Free tier available
-- **Anthropic**: Pay-per-use pricing
+```bash
+RAILWAY_URL=https://your-app.railway.app python test_railway.py
+```
 
-## 🔒 Security
+## Configuration
 
-- API keys stored securely in Railway environment variables
-- No sensitive data logged
-- Database is local to deployment
-- HTTPS enabled by default on Railway
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `BRAVE_SEARCH_API_KEY` | Yes | Brave Search key. Passed to the MCP server as `BRAVE_API_KEY` and used directly for the REST fallback. |
+| `ANTHROPIC_API_KEY` | Yes | Anthropic key for the Claude call. |
+| `DATABASE_URL` | Yes for storage | PostgreSQL connection string. Connections use `sslmode=require`. Railway provides this when a Postgres service is attached. |
+| `ANTHROPIC_MODEL` | No | Model for generation. Default `claude-sonnet-4-20250514`. |
+| `ANTHROPIC_MAX_TOKENS` | No | Output token limit. Default `2200`. |
+| `CRON_SECRET` | No | If set, `/api/cron/generate` requires a matching `X-Cron-Secret` header. If unset, the endpoint is open and logs a warning. |
+| `RAILWAY_CRON_SCHEDULE` | No | Set by Railway cron services. When present, the process generates once and exits. |
+| `PORT` | No | Listen port. Default `5000` for `python app.py`, `8080` for the Docker/gunicorn command. |
+| `RAILWAY_URL` | No | Used only by `test_railway.py`. Default `http://localhost:5000`. |
 
-## 📈 Monitoring
+A `.env` file in the project root is loaded with `python-dotenv`.
 
-- Health check endpoint: `/health`
-- Railway provides built-in monitoring
-- Application logs available in dashboard
-- Test endpoints for MCP integration verification
+## API
 
-## 🤝 Contributing
+| Route | Purpose |
+|-------|---------|
+| `GET /` | Minimal HTML page with a generate button |
+| `GET, POST /api/generate` | Generate a newsletter, save it, return the HTML and id |
+| `GET, POST /api/cron/generate` | Same as above, guarded by `CRON_SECRET`, returns the id without the HTML |
+| `GET /api/newsletters` | List newsletter ids and creation dates, newest first |
+| `GET /newsletter/<id>` | Raw HTML for one newsletter |
+| `GET /health` | Status plus whether each API key is set |
+| `POST /api/test-mcp` | Run one `web_search` or `news_search` query, report result count |
+| `POST /api/test-search` | Run one of the four news passes, return the first three results |
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+## Deployment
 
-## 📄 License
+The repo is set up for Railway. `railway.toml` selects the Dockerfile builder, which installs Python 3.11, Node 20, the Python requirements, and the Brave MCP server globally. Attach a PostgreSQL service and set the two API keys.
 
-This project is licensed under the MIT License.
+Scheduled generation has three options. `railway.toml` declares a cron schedule of `0 */5 * * *` running `cron.py`. A separate Railway cron service can run the same image, in which case the start command detects `RAILWAY_CRON_SCHEDULE` and generates instead of serving. Or an external scheduler can `POST /api/cron/generate` with the `X-Cron-Secret` header; see [CRON_SETUP.md](./CRON_SETUP.md) for a GitHub Actions example.
+
+`Procfile` and `nixpacks.toml` are older alternatives to the Dockerfile and start the app with `python3 app.py`.
+
+## Project layout
+
+```
+app.py                             Flask app: search passes, prompt, Claude call, Postgres storage, routes, cron entry
+mcp_client.py                      Brave Search MCP client over stdio, with direct REST API fallback
+cron.py                            Standalone cron entry that calls run_cron_generation() and exits
+cron_endpoint.py                   Copy of the /api/cron/generate handler; not imported by app.py
+generate_newsletter_original.py    Earlier standalone version of the generator, kept for reference
+test_railway.py                    Smoke test against a running deployment
+Dockerfile, railway.toml           Railway build and start configuration
+Procfile, nixpacks.toml            Alternative Railway start configurations
+CRON_SETUP.md                      Notes on scheduling generation
+```
+
+## Limitations
+
+- Generation is one blocking request with no queue or job status. Gunicorn runs with a 180 second timeout for this reason.
+- Market data is scraped from Brave search snippets with simple parsing, so values often come back as `N/A`. The prompt tells Claude to search for prices itself when that happens.
+- The `/api/test-mcp` and `/api/test-search` routes and `/api/generate` have no authentication. Only the cron endpoint checks a secret, and only when `CRON_SECRET` is set.
+- The `newsletters` table has `status`, `editor_notes` and `sent_at` columns, but this service only ever writes `draft`. Editing and sending happen in the frontend.
+- The MCP server is spawned with `npx` on first use. If Node or the package is missing, every search silently falls back to the REST API.
+- There is no test suite beyond the deployment smoke test.
+
+## License
+
+MIT.
